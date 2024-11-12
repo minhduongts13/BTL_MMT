@@ -1,7 +1,2 @@
-<<<<<<< HEAD
 Flask
 requests
-=======
-Flask==2.2.2
-requests==2.26.0
->>>>>>> c3d6106 (Initial commit)
