@@ -47,7 +47,7 @@ class TrackerClient:
             return []
 
 def create_metainfo():
-    metaInfo = Metainfo([r"D:/BTL/BTLMMT/BTL/Peer/sample.txt", r"D:/BTL/BTLMMT/BTL/Peer/sample2.txt"], 512, "https://btl-mmt.onrender.com/announce")
+    metaInfo = Metainfo([r"D:/BTL/BTLMMT/BTL_MMT/Peer/sample.txt", r"D:/BTL/BTLMMT/BTL_MMT/Peer/sample2.txt"], 512, "https://btl-mmt.onrender.com/announce")
     metaInfo.generate_metainfo()
     return metaInfo.info_hash
 
@@ -152,11 +152,11 @@ def cli_interface():
         
         # Danh sách các phần cần tải (ví dụ tải các phần 0, 1, 2)
         piece_list = [0, 1, 2]
-        if peer_list:
-            download_piece_from_multiple_peers(peer_list, piece_list)
+        # if peer_list:
+            # download_piece_from_multiple_peers(peer_list, piece_list)
         
         # Gửi yêu cầu "completed" sau khi hoàn tất tải xuống
-        tracker_client.send_tracker_request(event="completed")
+        # tracker_client.send_tracker_request(event="completed")
 
 if __name__ == "__main__":
     cli_interface()

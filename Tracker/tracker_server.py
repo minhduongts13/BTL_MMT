@@ -45,7 +45,7 @@ def announce():
     if event == "started":
         # Thêm hoặc cập nhật peer vào danh sách của info_hash
         torrent_peers[info_hash][peer_id] = {
-            "ip": request.remote_addr,
+            "ip": get_client_ip(),
             "port": port,
             "uploaded": uploaded,
             "downloaded": downloaded,
@@ -83,6 +83,19 @@ def announce():
         status=200,
         mimetype='text/plain'
     )
+
+def get_client_ip():
+    # Kiểm tra X-Forwarded-For header nếu có, lấy IP đầu tiên trong danh sách (IP gốc của client)
+    if 'X-Forwarded-For' in request.headers:
+        ip = request.headers['X-Forwarded-For'].split(',')[0].strip()
+    # Kiểm tra X-Real-IP header nếu có
+    elif 'X-Real-IP' in request.headers:
+        ip = request.headers['X-Real-IP']
+    # Nếu không có header nào, dùng request.remote_addr
+    else:
+        ip = request.remote_addr
+    return ip
+
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=8000)
