@@ -19,6 +19,7 @@ class TrackerClient:
         self.tracker_id = None  # Lưu tracker_id để gửi kèm theo các yêu cầu tiếp theo
 
     def send_tracker_request(self, event="started"):
+        public_ip = get_public_ip()
         params = {
             'info_hash': self.info_hash,
             'peer_id': self.peer_id,
@@ -27,18 +28,19 @@ class TrackerClient:
             'downloaded': self.downloaded,
             'left': self.left,
             'event': event,
-            'compact': 1
+            'compact': 1,
+            'public_ip': public_ip  # Gửi IP công khai của client
         }
 
         if self.tracker_id:
-            params['tracker_id'] = self.tracker_id  # Gửi lại tracker_id nếu đã nhận được
+            params['tracker_id'] = self.tracker_id
 
         try:
             response = requests.get(self.tracker_url, params=params)
             response.raise_for_status()
             
             response_data = response.json()
-            self.tracker_id = response_data.get("tracker_id", self.tracker_id)  # Cập nhật tracker_id nếu có
+            self.tracker_id = response_data.get("tracker_id", self.tracker_id)
             peer_list = response_data.get("peers", [])
             print(f"Received peers: {peer_list}")
             return peer_list
@@ -46,10 +48,21 @@ class TrackerClient:
             print(f"Error contacting tracker: {e}")
             return []
 
+
 def create_metainfo():
     metaInfo = Metainfo([r"D:/BTL/BTLMMT/BTL_MMT/Peer/sample.txt", r"D:/BTL/BTLMMT/BTL_MMT/Peer/sample2.txt"], 512, "https://btl-mmt.onrender.com/announce")
     metaInfo.generate_metainfo()
     return metaInfo.info_hash
+
+def get_public_ip():
+        try:
+            response = requests.get("https://api.ipify.org?format=json")
+            ip = response.json()["ip"]
+            return ip
+        except requests.RequestException as e:
+            print(f"Error getting public IP: {e}")
+            return None
+
 
 def generate_peer_id():
     # Sử dụng prefix mô tả phiên bản của client (8 ký tự đầu tiên)

@@ -14,6 +14,7 @@ tracker_id = "tracker_001"
 MAX_PEERS = 50
 
 @app.route('/announce', methods=['GET'])
+@app.route('/announce', methods=['GET'])
 def announce():
     # Lấy các tham số từ yêu cầu của client
     info_hash = request.args.get('info_hash')
@@ -37,41 +38,39 @@ def announce():
     except ValueError:
         return jsonify({"Failure reason": "Invalid parameter values"}), 400
 
+    # Lấy IP của client từ yêu cầu nếu có, hoặc từ hàm get_client_ip()
+    client_ip = request.args.get('public_ip') or get_client_ip()
+
     # Kiểm tra hoặc tạo mới danh sách peers cho info_hash
     if info_hash not in torrent_peers:
         torrent_peers[info_hash] = {}
 
     # Xử lý sự kiện từ client
     if event == "started":
-        # Thêm hoặc cập nhật peer vào danh sách của info_hash
         torrent_peers[info_hash][peer_id] = {
-            "ip": get_client_ip(),
+            "ip": client_ip,
             "port": port,
             "uploaded": uploaded,
             "downloaded": downloaded,
             "left": left,
             "completed": False
         }
-        print(f"Peer {peer_id} has started downloading torrent {info_hash}.")
-
+        print(f"Peer {peer_id} with IP {client_ip} has started downloading torrent {info_hash}.")
     elif event == "completed":
-        # Đánh dấu peer là đã hoàn tất tải xuống
         if peer_id in torrent_peers[info_hash]:
             torrent_peers[info_hash][peer_id]["completed"] = True
-        print(f"Peer {peer_id} has completed downloading torrent {info_hash}.")
-
+        print(f"Peer {peer_id} with IP {client_ip} has completed downloading torrent {info_hash}.")
     elif event == "stopped":
-        # Xóa peer khỏi danh sách nếu họ ngừng chia sẻ
         if peer_id in torrent_peers[info_hash]:
             del torrent_peers[info_hash][peer_id]
-        print(f"Peer {peer_id} has stopped and was removed from the list for torrent {info_hash}.")
+        print(f"Peer {peer_id} with IP {client_ip} has stopped and was removed from the list for torrent {info_hash}.")
 
     # Chuẩn bị phản hồi danh sách các peers còn lại, giới hạn theo MAX_PEERS
     peer_list = [
         {"peer_id": pid, "ip": peer["ip"], "port": peer["port"]}
         for pid, peer in torrent_peers[info_hash].items()
     ]
-    peer_list = peer_list[:MAX_PEERS]  # Giới hạn số lượng peers trả về
+    peer_list = peer_list[:MAX_PEERS]
 
     response_data = {
         "tracker_id": tracker_id,
@@ -83,6 +82,7 @@ def announce():
         status=200,
         mimetype='text/plain'
     )
+
 
 def get_client_ip():
     # Kiểm tra X-Forwarded-For header nếu có, lấy IP đầu tiên trong danh sách (IP gốc của client)
