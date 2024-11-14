@@ -155,8 +155,8 @@ def cli_interface():
         if (args.upload):
             info_hash = create_metainfo()
         else:
-            info_hash = "aaa"
-        tracker_url = "https://btl-mmt.onrender.com/announce"
+            info_hash = "afea885a37215e2d5595cf5cca80c6ce4a603c92"
+        tracker_url = "https://btl-mmt-pma6.onrender.com/announce"
         peer_id = generate_peer_id()
         tracker_client = TrackerClient(tracker_url, info_hash, peer_id, port=6881)
 
