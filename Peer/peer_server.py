@@ -1,60 +1,79 @@
 import socket
 import threading
+import json
+import hashlib
+from utils import DownloadManager
 
-# Lưu trữ các phần tệp đã tải xuống dưới dạng {piece_index: data}
-downloaded_pieces = {}
 
-def peer_server():
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind(('localhost', 6881))
-    server_socket.listen(5)
-    print("Peer server is listening on port 6881")
+class Peer_Server:
+    def __init__(self, download_manager, metainfo):
+        self.download_manager = download_manager
+        self.metainfo = metainfo
 
-    while True:
-        peer_socket, peer_addr = server_socket.accept()
-        print(f"Connected with peer: {peer_addr}")
-        
-        # Tạo thread để xử lý từng yêu cầu từ peer
-        thread = threading.Thread(target=handle_peer, args=(peer_socket,))
-        thread.start()
+    def peer_server(self):
+        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server_socket.bind(('localhost', 6881))
+        server_socket.listen(5)
+        print("Peer server is listening on port 6881")
 
-def handle_peer(peer_socket):
-    try:
-        # Nhận yêu cầu từ peer khác
-        request = peer_socket.recv(1024).decode('utf-8')
-        print(f"Received request: {request}")
-        
-        # Xử lý yêu cầu, giả sử yêu cầu dạng "Request piece:<piece_index>"
-        if request.startswith("Request piece:"):
-            piece_index = int(request.split(":")[1])
+        while True:
+            peer_socket, peer_addr = server_socket.accept()
+            print(f"Connected with peer: {peer_addr}")
             
-            # Kiểm tra nếu phần tệp đã có, gửi lại cho peer
-            if has_piece(piece_index):
-                piece_data = downloaded_pieces[piece_index]
-                peer_socket.send(piece_data)
-                print(f"Sent piece {piece_index} to peer.")
+            # Tạo thread để xử lý từng yêu cầu từ peer
+            thread = threading.Thread(target=self.handle_peer, args=(peer_socket,))
+            thread.start()
+
+    def handle_peer(self, peer_socket):
+        try:
+            # Nhận yêu cầu từ peer khác
+            request = peer_socket.recv(1024).decode('utf-8')
+            print(f"Received request: {request}")
+            
+            # Xử lý yêu cầu metainfo
+            if request == "request_metainfo":
+                self.send_metainfo(self, peer_socket)
+
+            # Xử lý yêu cầu tải piece
+            elif request.startswith("Request piece:"):
+                piece_index = int(request.split(":")[1])
+                self.send_piece(self, peer_socket, piece_index)
+                
+            elif request.startswith("has_piece:"):
+                piece_index = int(request.split(":")[1])
+                if self.download_manager.has_piece(piece_index):
+                    peer_socket.send("yes".encode('utf-8'))
+                else:
+                    peer_socket.send("no".encode('utf-8'))
             else:
-                # Nếu không có phần tệp, gửi thông báo lỗi
-                peer_socket.send("Piece not available".encode('utf-8'))
-                print(f"Piece {piece_index} not available.")
-    except Exception as e:
-        print(f"Error handling peer request: {e}")
-    finally:
-        peer_socket.close()
+                peer_socket.send("Invalid request".encode('utf-8'))
+                print("Invalid request received.")
+        except Exception as e:
+            print(f"Error handling peer request: {e}")
+        finally:
+            peer_socket.close()
 
-def add_downloaded_piece(piece_index, data):
-    # Thêm phần tệp đã tải xuống vào danh sách
-    downloaded_pieces[piece_index] = data
+    def send_metainfo(self, peer_socket):
+        """Gửi metainfo dưới dạng JSON đến peer."""
+        try:
+            metainfo_data = json.dumps(self.metainfo).encode('utf-8')
+            peer_socket.sendall(metainfo_data)
+            print("Sent metainfo to peer.")
+        except Exception as e:
+            print(f"Error sending metainfo: {e}")
 
-def has_piece(piece_index):
-    # Kiểm tra xem phần tệp đã tải xuống chưa
-    return piece_index in downloaded_pieces
+    def send_piece(self, peer_socket, piece_index):
+        """Gửi dữ liệu piece cho peer khác nếu có sẵn."""
+        if self.download_manager.has_piece(piece_index):
+            piece_data = self.download_manager.get_piece_data(piece_index)
+            try:
+                peer_socket.sendall(piece_data)  # Gửi toàn bộ dữ liệu piece
+                print(f"Sent piece {piece_index} to peer.")
+            except Exception as e:
+                print(f"Error sending piece {piece_index}: {e}")
+        else:
+            peer_socket.send("Piece not available".encode('utf-8'))
+            print(f"Piece {piece_index} not available.")
 
 
 
-if __name__ == "__main__":
-    # Ví dụ thêm phần tệp để thử nghiệm
-    add_downloaded_piece(0, b"This is the data for piece 0")
-    add_downloaded_piece(1, b"This is the data for piece 1")
-
-    peer_server()
