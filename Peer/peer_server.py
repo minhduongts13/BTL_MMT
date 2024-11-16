@@ -12,9 +12,9 @@ class Peer_Server:
 
     def peer_server(self):
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server_socket.bind(('localhost', 6881))
+        server_socket.bind(('localhost', 6883))
         server_socket.listen(5)
-        print("Peer server is listening on port 6881")
+        print("Peer server is listening on port 6882")
 
         while True:
             peer_socket, peer_addr = server_socket.accept()

@@ -44,17 +44,30 @@ def announce():
     # Kiểm tra hoặc tạo mới danh sách peers cho info_hash
     if info_hash not in torrent_peers:
         torrent_peers[info_hash] = {}
-
+    response_data = {}
     # Xử lý sự kiện từ client
     if event == "started":
-        torrent_peers[info_hash][peer_id] = {
-            "ip": client_ip,
-            "port": port,
-            "uploaded": uploaded,
-            "downloaded": downloaded,
-            "left": left,
-            "completed": False
-        }
+        if not (peer_id in torrent_peers[info_hash]):
+            # Chuẩn bị phản hồi danh sách các peers còn lại, giới hạn theo MAX_PEERS
+            peer_list = [
+                {"peer_id": pid, "ip": peer["ip"], "port": peer["port"]}
+                for pid, peer in torrent_peers[info_hash].items()
+            ]
+            peer_list = peer_list[:MAX_PEERS]
+
+            response_data = {
+                "tracker_id": tracker_id,
+                "peers": peer_list
+            }
+
+            torrent_peers[info_hash][peer_id] = {
+                "ip": client_ip,
+                "port": port,
+                "uploaded": uploaded,
+                "downloaded": downloaded,
+                "left": left,
+                "completed": False
+            }
         print(f"Peer {peer_id} with IP {client_ip} has started downloading torrent {info_hash}.")
     elif event == "completed":
         if peer_id in torrent_peers[info_hash]:
@@ -65,17 +78,7 @@ def announce():
             del torrent_peers[info_hash][peer_id]
         print(f"Peer {peer_id} with IP {client_ip} has stopped and was removed from the list for torrent {info_hash}.")
 
-    # Chuẩn bị phản hồi danh sách các peers còn lại, giới hạn theo MAX_PEERS
-    peer_list = [
-        {"peer_id": pid, "ip": peer["ip"], "port": peer["port"]}
-        for pid, peer in torrent_peers[info_hash].items()
-    ]
-    peer_list = peer_list[:MAX_PEERS]
-
-    response_data = {
-        "tracker_id": tracker_id,
-        "peers": peer_list
-    }
+    
 
     return app.response_class(
         response=json.dumps(response_data),

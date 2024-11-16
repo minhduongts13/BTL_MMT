@@ -137,7 +137,8 @@ def download_piece_from_multiple_peers(peer_list, total_pieces, download_manager
                 # Peer đó là chính client
                 peer_ip, peer_port = peer["ip"], peer["port"]
                 if get_public_ip() == peer_ip:
-                    continue
+                    # continue
+                    peer_ip = "127.0.0.1"
                 
                 # Kiểm tra xem peer có piece này không trước khi tải
                 if peer_has_piece(peer_ip, peer_port, piece_index):
@@ -158,9 +159,9 @@ def run_server(download_manager, metainfo_data):
     peer_server.peer_server()
 
 def send_stopped_event(tracker_client):
-    """Gửi sự kiện 'stopped' đến tracker khi peer thoát."""
     tracker_client.send_tracker_request(event="stopped")
     print("Sent 'stopped' event to tracker.")
+
 
 
 def cli_interface():
@@ -178,7 +179,7 @@ def cli_interface():
         # Thông tin tracker
         tracker_url = "https://btl-mmt-pma6.onrender.com/announce"
         peer_id = generate_peer_id()
-        tracker_client = TrackerClient(tracker_url, info_hash, peer_id, port=6881)
+        tracker_client = TrackerClient(tracker_url, info_hash, peer_id, port=6882)
 
         # Gửi yêu cầu "started" đến tracker và nhận danh sách peers
         peer_list = tracker_client.send_tracker_request(event="started")
@@ -203,16 +204,18 @@ def cli_interface():
     else:
         metaInfo = create_metainfo()
         info_hash = metaInfo[0]
+        print(info_hash)
         metainfo_data = metaInfo[1]
         total_pieces, piece_length, files = len(metainfo_data['info']['pieces']), metainfo_data['info']['piece length'], metainfo_data['info']['files'] 
         tracker_url = "https://btl-mmt-pma6.onrender.com/announce"
         peer_id = generate_peer_id()
-        tracker_client = TrackerClient(tracker_url, info_hash, peer_id, port=6881)
+        tracker_client = TrackerClient(tracker_url, info_hash, peer_id, port=6883)
         peer_list = tracker_client.send_tracker_request(event="started")
         tracker_client.send_tracker_request(event="completed")
         download_manager = DownloadManager(total_pieces, piece_length, files, True, [r"D:/BTL/BTLMMT/BTL_MMT/Peer/sample.txt", r"D:/BTL/BTLMMT/BTL_MMT/Peer/sample2.txt"])
         run_server(download_manager, metainfo_data)
 
-    atexit.register(send_stopped_event, tracker_client, True, )
+    atexit.register(send_stopped_event, tracker_client)
+
 if __name__ == "__main__":
     cli_interface()

@@ -120,11 +120,12 @@ class Metainfo:
 
 def create_metainfo():
     file_paths = []
-    file_path = input("Enter files paths, type '//' to stop.\n")
-    while (file_paths != "//"):
+    file_path = str(input("Enter files paths, type '//' to stop.\n"))
+    while (file_path != "//"):
         file_paths.append(file_path)
+        file_path = str(input())
 
-    piece_length = input("Enter piece length")
+    piece_length = int(input("Enter piece length"))
     metaInfo = Metainfo(file_paths, piece_length, "https://btl-mmt-pma6.onrender.com/announce")
     # metaInfo = Metainfo([r"D:/BTL/BTLMMT/BTL_MMT/Peer/sample.txt", r"D:/BTL/BTLMMT/BTL_MMT/Peer/sample2.txt"], 512, "https://btl-mmt.onrender.com/announce")
     metaInfo.generate_metainfo()
