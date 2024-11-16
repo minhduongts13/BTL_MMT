@@ -91,13 +91,14 @@ def connect_to_peer_and_download(peer_ip, peer_port, piece_index, download_manag
     response = peer_socket.recv(1024).decode('utf-8')
     if response == "established":
         print(f"Connection established with {peer_ip}:{peer_port}")
-
-    request_piece_from_peer(peer_socket, piece_index)
-    piece_data = handle_peer_response(peer_socket, piece_index)
-    
-    # Lưu block_data vào DownloadManager
-    download_manager.save_piece(piece_index, piece_data)
-
+    while True:
+        request_piece_from_peer(peer_socket, piece_index)
+        piece_data = handle_peer_response(peer_socket, piece_index)
+        piece_hash = hashlib.sha1(piece_data).hexdigest()
+        if (piece_hash == piece_data):
+            # Lưu block_data vào DownloadManager
+            download_manager.save_piece(piece_index, piece_data)
+            break
     # Gửi thông báo 'has' ngay sau khi tải xong
     peer_socket.send(f"has_piece:{piece_index}".encode('utf-8'))
     print(f"Sent 'has' message for piece {piece_index}.")
@@ -164,18 +165,16 @@ def send_stopped_event(tracker_client):
 
 def cli_interface():
     parser = argparse.ArgumentParser(description="P2P File sharing application")
-    parser.add_argument("info_hash", type=str, help="The torrent file to download")
-    parser.add_argument("--download", action="store_true", help="Start downloading the file")
-    parser.add_argument("--upload", action="store_true", help="Start connect tracker to give it the info-hash")
+
+    # Tạo nhóm tùy chọn loại trừ lẫn nhau
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--download", action="store_true", help="Start downloading the file")
+    group.add_argument("--upload", action="store_true", help="Start connecting to the tracker to share info-hash")
+
     args = parser.parse_args()
 
     if args.download:
-        # Tạo metainfo nếu upload được yêu cầu
-        if args.upload:
-            info_hash = create_metainfo()
-        else:
-            info_hash = args.info_hash
-        
+        info_hash = input("Enter the info-hash of the file that you want to download")
         # Thông tin tracker
         tracker_url = "https://btl-mmt-pma6.onrender.com/announce"
         peer_id = generate_peer_id()
@@ -183,26 +182,37 @@ def cli_interface():
 
         # Gửi yêu cầu "started" đến tracker và nhận danh sách peers
         peer_list = tracker_client.send_tracker_request(event="started")
-
         # Yêu cầu metainfo từ một peer đầu tiên
         if peer_list:
             first_peer = peer_list[0]
             metainfo_data = request_metainfo_from_peer(first_peer["ip"], first_peer["port"])
             if metainfo_data:
-                total_pieces, piece_size, files = len(metainfo_data['info']['pieces']), metainfo_data['info']['piece length'], metainfo_data['info']['files'] 
-                download_manager = DownloadManager(total_pieces, files)
+                total_pieces, piece_length, files = len(metainfo_data['info']['pieces']), metainfo_data['info']['piece length'], metainfo_data['info']['files'] 
+                download_manager = DownloadManager(total_pieces, piece_length, files)
                 # Bắt đầu tải xuống từ nhiều peers
                 download_piece_from_multiple_peers(peer_list, total_pieces, download_manager)
                 
                 # Sau khi tải xong, gửi yêu cầu "completed" đến tracker
                 tracker_client.send_tracker_request(event="completed")
-                
+                run_server(download_manager, metainfo_data)
+                download_manager.assemble()
             else:
                 print("Failed to retrieve metainfo from peer.")
         else:
             print("No peers available to download from.")
-        atexit.register(send_stopped_event, tracker_client)
+    else:
+        metaInfo = create_metainfo()
+        info_hash = metaInfo[0]
+        metainfo_data = metaInfo[1]
+        total_pieces, piece_length, files = len(metainfo_data['info']['pieces']), metainfo_data['info']['piece length'], metainfo_data['info']['files'] 
+        tracker_url = "https://btl-mmt-pma6.onrender.com/announce"
+        peer_id = generate_peer_id()
+        tracker_client = TrackerClient(tracker_url, info_hash, peer_id, port=6881)
+        peer_list = tracker_client.send_tracker_request(event="started")
+        tracker_client.send_tracker_request(event="completed")
+        download_manager = DownloadManager(total_pieces, piece_length, files, True, [r"D:/BTL/BTLMMT/BTL_MMT/Peer/sample.txt", r"D:/BTL/BTLMMT/BTL_MMT/Peer/sample2.txt"])
+        run_server(download_manager, metainfo_data)
 
-
+    atexit.register(send_stopped_event, tracker_client, True, )
 if __name__ == "__main__":
     cli_interface()

@@ -56,11 +56,16 @@ class Peer_Server:
     def send_metainfo(self, peer_socket):
         """Gửi metainfo dưới dạng JSON đến peer."""
         try:
+            if not self.metainfo:
+                raise ValueError("Metainfo is missing or invalid.")
             metainfo_data = json.dumps(self.metainfo).encode('utf-8')
+            if len(metainfo_data) > 4096:  # Giới hạn kích thước metainfo
+                raise ValueError("Metainfo size exceeds the limit.")
             peer_socket.sendall(metainfo_data)
             print("Sent metainfo to peer.")
         except Exception as e:
             print(f"Error sending metainfo: {e}")
+
 
     def send_piece(self, peer_socket, piece_index):
         """Gửi dữ liệu piece cho peer khác nếu có sẵn."""

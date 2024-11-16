@@ -7,10 +7,25 @@ import hashlib
 from file_manager import assemble_file  
 
 class DownloadManager:
-    def __init__(self, total_pieces, files):
-        self.piece_status = {i: {'data': None, 'downloaded': False} for i in range(total_pieces)}
+    def __init__(self, total_pieces, piece_length, files, isUpload = False, file_paths = None):
+        self.isUpload = isUpload
+        self.piece_status = {i: {'data': None, 'downloaded': False} for i in range(total_pieces)} if self.isUpload else self.generate_piece()
+        self.piece_length = piece_length
         self.total_pieces = total_pieces
         self.files = files
+        self.file_paths = file_paths
+    
+    def generate_piece(self):
+        for file_path in self.file_paths:
+            file_size = os.path.getsize(file_path)
+            with open(file_path, "rb") as f:
+                while True:
+                    piece_data = f.read(self.piece_length)
+                    if not piece_data:
+                        break
+                    self.pieces.append(piece_data)
+            # Thêm thông tin tệp vào danh sách files
+            self.files.append({"length": file_size, "path": [file_path]})
 
     def save_piece(self, piece_index, piece_data):
         """Lưu piece vào bộ nhớ và đánh dấu đã tải xong."""
@@ -60,6 +75,7 @@ class Metainfo:
         self.pieces = []
         self.files = []
         self.info_hash = None
+        self.metainfo_data = {}
 
     def generate_pieces(self):
         # Duyệt qua từng tệp và tính toán hash của các phần
@@ -88,7 +104,7 @@ class Metainfo:
             },
             "announce": self.tracker_url
         }
-        
+        self.metainfo_data = metainfo_data
         # Tạo mã hash duy nhất (info_hash) đại diện cho tệp
         info_serialized = json.dumps(metainfo_data["info"], sort_keys=True).encode("utf-8")
         self.info_hash = hashlib.sha1(info_serialized).hexdigest()
@@ -101,18 +117,18 @@ class Metainfo:
         print(f"Metainfo file created at: {torrent_file_path}")
         return torrent_file_path
     
-    def load_from_data(self, data):
-        # Giải mã dữ liệu và gán giá trị cho các thuộc tính
-        # Ví dụ: self.total_pieces, self.piece_size, self.file_size
-        metainfo = json.loads(data.decode('utf-8'))  # Giả sử dữ liệu là JSON
-        self.total_pieces = metainfo.get("total_pieces")
-        self.piece_size = metainfo.get("piece_size")
-        self.file_size = metainfo.get("file_size")
 
 def create_metainfo():
-    metaInfo = Metainfo([r"D:/BTL/BTLMMT/BTL_MMT/Peer/sample.txt", r"D:/BTL/BTLMMT/BTL_MMT/Peer/sample2.txt"], 512, "https://btl-mmt.onrender.com/announce")
+    file_paths = []
+    file_path = input("Enter files paths, type '//' to stop.\n")
+    while (file_paths != "//"):
+        file_paths.append(file_path)
+
+    piece_length = input("Enter piece length")
+    metaInfo = Metainfo(file_paths, piece_length, "https://btl-mmt-pma6.onrender.com/announce")
+    # metaInfo = Metainfo([r"D:/BTL/BTLMMT/BTL_MMT/Peer/sample.txt", r"D:/BTL/BTLMMT/BTL_MMT/Peer/sample2.txt"], 512, "https://btl-mmt.onrender.com/announce")
     metaInfo.generate_metainfo()
-    return metaInfo.info_hash
+    return [metaInfo.info_hash, metaInfo.metainfo_data]
 
 def get_public_ip():
     try:
