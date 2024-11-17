@@ -65,11 +65,7 @@ def generate_peer_id():
     
     return peer_id
 
-def request_piece_from_peer(peer_socket, piece_index):
-    """Gửi yêu cầu tải xuống một block từ peer."""
-    request_message = f"Request piece:{piece_index}"
-    peer_socket.send(request_message.encode('utf-8'))
-    print(f"Requested piece {piece_index}")
+
 
 def handle_peer_response(peer_socket, piece_index):
     """Nhận và xử lý dữ liệu từ peer."""
@@ -80,8 +76,6 @@ def handle_peer_response(peer_socket, piece_index):
             return data
     except socket.error as e:
         print(f"Error receiving block data: {e}")
-    finally:
-        peer_socket.close()
 
 def connect_to_peer_and_download(peer_ip, peer_port, piece_index, download_manager):
     peer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -91,19 +85,19 @@ def connect_to_peer_and_download(peer_ip, peer_port, piece_index, download_manag
     response = peer_socket.recv(1024).decode('utf-8')
     if response == "established":
         print(f"Connection established with {peer_ip}:{peer_port}")
-    while True:
-        request_piece_from_peer(peer_socket, piece_index)
-        piece_data = handle_peer_response(peer_socket, piece_index)
-        piece_hash = hashlib.sha1(piece_data).hexdigest()
-        if (piece_hash == piece_data):
-            # Lưu block_data vào DownloadManager
-            download_manager.save_piece(piece_index, piece_data)
-            break
+
+    request_message = f"Request piece:{piece_index}"
+    peer_socket.send(request_message.encode('utf-8'))
+    print(f"Requested piece {piece_index}")
+    piece_data = handle_peer_response(peer_socket, piece_index)
+    # Lưu block_data vào DownloadManager
+    download_manager.save_piece(piece_index, piece_data)
+
     # Gửi thông báo 'has' ngay sau khi tải xong
     peer_socket.send(f"has_piece:{piece_index}".encode('utf-8'))
     print(f"Sent 'has' message for piece {piece_index}.")
 
-    peer_socket.close()
+    peer_socket.send("end".encode('utf-8'))
 
 def peer_has_piece(peer_ip, peer_port, piece_index):
     """Gửi yêu cầu đến peer để kiểm tra xem họ có piece không."""
@@ -117,7 +111,7 @@ def peer_has_piece(peer_ip, peer_port, piece_index):
         
         # Nhận phản hồi từ peer
         response = peer_socket.recv(1024).decode('utf-8')
-        peer_socket.close()
+        peer_socket.send('end'.encode('utf-8'))
         
         return response == "yes"  # Nếu peer có piece này, trả về True
     except socket.error as e:
@@ -144,7 +138,7 @@ def download_piece_from_multiple_peers(peer_list, total_pieces, download_manager
                 if peer_has_piece(peer_ip, peer_port, piece_index):
                     thread = threading.Thread(
                         target=connect_to_peer_and_download, 
-                        args=(peer_ip, peer_port, piece_index, download_manager, "downloaded_file.txt")
+                        args=(peer_ip, peer_port, piece_index, download_manager)
                     )
                     threads.append(thread)
                     thread.start()
@@ -154,14 +148,24 @@ def download_piece_from_multiple_peers(peer_list, total_pieces, download_manager
         thread.join()
     print("Downloaded all pieces")
 
-def run_server(download_manager, metainfo_data):
+def run_server(download_manager, metainfo_data, port):
     peer_server = Peer_Server(download_manager, metainfo_data)
-    peer_server.peer_server()
+    peer_server.peer_server(port)
 
 def send_stopped_event(tracker_client):
     tracker_client.send_tracker_request(event="stopped")
     print("Sent 'stopped' event to tracker.")
 
+def run_server_in_thread(download_manager, metainfo_data, port):
+    """Khởi động server trong một thread riêng biệt."""
+    server_thread = threading.Thread(target=run_server, args=(download_manager, metainfo_data, port))
+    server_thread.daemon = True  # Đảm bảo thread dừng khi main thread thoát
+    server_thread.start()
+
+def get_free_port():
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(('0.0.0.0', 0))  # Bind với cổng 0 để hệ thống chọn cổng tự do
+        return s.getsockname()[1]  # Lấy cổng mà hệ thống đã chọn
 
 
 def cli_interface():
@@ -175,27 +179,32 @@ def cli_interface():
     args = parser.parse_args()
 
     if args.download:
-        info_hash = input("Enter the info-hash of the file that you want to download")
+        info_hash = input("Enter the info-hash of the file that you want to download: ")
         # Thông tin tracker
         tracker_url = "https://btl-mmt-pma6.onrender.com/announce"
         peer_id = generate_peer_id()
-        tracker_client = TrackerClient(tracker_url, info_hash, peer_id, port=6882)
+        port = get_free_port()
+        tracker_client = TrackerClient(tracker_url, info_hash, peer_id, port)
 
         # Gửi yêu cầu "started" đến tracker và nhận danh sách peers
         peer_list = tracker_client.send_tracker_request(event="started")
         # Yêu cầu metainfo từ một peer đầu tiên
         if peer_list:
             first_peer = peer_list[0]
-            metainfo_data = request_metainfo_from_peer(first_peer["ip"], first_peer["port"])
+            peer_ip = first_peer['ip']
+            if get_public_ip() == first_peer['ip']:
+                # continue
+                peer_ip = "127.0.0.1"
+            metainfo_data = request_metainfo_from_peer(peer_ip, first_peer["port"])
             if metainfo_data:
                 total_pieces, piece_length, files = len(metainfo_data['info']['pieces']), metainfo_data['info']['piece length'], metainfo_data['info']['files'] 
                 download_manager = DownloadManager(total_pieces, piece_length, files)
                 # Bắt đầu tải xuống từ nhiều peers
+                run_server_in_thread(download_manager, metainfo_data, port)
                 download_piece_from_multiple_peers(peer_list, total_pieces, download_manager)
                 
                 # Sau khi tải xong, gửi yêu cầu "completed" đến tracker
                 tracker_client.send_tracker_request(event="completed")
-                run_server(download_manager, metainfo_data)
                 download_manager.assemble()
             else:
                 print("Failed to retrieve metainfo from peer.")
@@ -204,16 +213,17 @@ def cli_interface():
     else:
         metaInfo = create_metainfo()
         info_hash = metaInfo[0]
+        port = get_free_port()
         print(info_hash)
         metainfo_data = metaInfo[1]
         total_pieces, piece_length, files = len(metainfo_data['info']['pieces']), metainfo_data['info']['piece length'], metainfo_data['info']['files'] 
         tracker_url = "https://btl-mmt-pma6.onrender.com/announce"
         peer_id = generate_peer_id()
-        tracker_client = TrackerClient(tracker_url, info_hash, peer_id, port=6883)
+        tracker_client = TrackerClient(tracker_url, info_hash, peer_id, port)
         peer_list = tracker_client.send_tracker_request(event="started")
         tracker_client.send_tracker_request(event="completed")
         download_manager = DownloadManager(total_pieces, piece_length, files, True, [r"D:/BTL/BTLMMT/BTL_MMT/Peer/sample.txt", r"D:/BTL/BTLMMT/BTL_MMT/Peer/sample2.txt"])
-        run_server(download_manager, metainfo_data)
+        run_server(download_manager, metainfo_data, port)
 
     atexit.register(send_stopped_event, tracker_client)
 

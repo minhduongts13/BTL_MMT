@@ -9,13 +9,15 @@ from file_manager import assemble_file
 class DownloadManager:
     def __init__(self, total_pieces, piece_length, files, isUpload = False, file_paths = None):
         self.isUpload = isUpload
-        self.piece_status = {i: {'data': None, 'downloaded': False} for i in range(total_pieces)} if self.isUpload else self.generate_piece()
+        self.file_paths = file_paths
         self.piece_length = piece_length
         self.total_pieces = total_pieces
         self.files = files
-        self.file_paths = file_paths
+        self.piece_status = {i: {'data': None, 'downloaded': False} for i in range(total_pieces)} if not self.isUpload else self.generate_piece()
     
     def generate_piece(self):
+        dic = {}
+        i = 0
         for file_path in self.file_paths:
             file_size = os.path.getsize(file_path)
             with open(file_path, "rb") as f:
@@ -23,9 +25,8 @@ class DownloadManager:
                     piece_data = f.read(self.piece_length)
                     if not piece_data:
                         break
-                    self.pieces.append(piece_data)
-            # Thêm thông tin tệp vào danh sách files
-            self.files.append({"length": file_size, "path": [file_path]})
+                    dic[i] = {'data' : piece_data, 'downloaded': True}
+            return dic
 
     def save_piece(self, piece_index, piece_data):
         """Lưu piece vào bộ nhớ và đánh dấu đã tải xong."""
@@ -119,15 +120,15 @@ class Metainfo:
     
 
 def create_metainfo():
-    file_paths = []
-    file_path = str(input("Enter files paths, type '//' to stop.\n"))
-    while (file_path != "//"):
-        file_paths.append(file_path)
-        file_path = str(input())
+    # file_paths = []
+    # file_path = str(input("Enter files paths, type '//' to stop.\n"))
+    # while (file_path != "//"):
+    #     file_paths.append(file_path)
+    #     file_path = str(input())
 
-    piece_length = int(input("Enter piece length"))
-    metaInfo = Metainfo(file_paths, piece_length, "https://btl-mmt-pma6.onrender.com/announce")
-    # metaInfo = Metainfo([r"D:/BTL/BTLMMT/BTL_MMT/Peer/sample.txt", r"D:/BTL/BTLMMT/BTL_MMT/Peer/sample2.txt"], 512, "https://btl-mmt.onrender.com/announce")
+    # piece_length = int(input("Enter piece length: "))
+    # metaInfo = Metainfo(file_paths, piece_length, "https://btl-mmt-pma6.onrender.com/announce")
+    metaInfo = Metainfo([r"D:/BTL/BTLMMT/BTL_MMT/Peer/sample.txt", r"D:/BTL/BTLMMT/BTL_MMT/Peer/sample2.txt"], 512, "https://btl-mmt-pma6.onrender.com/announce")
     metaInfo.generate_metainfo()
     return [metaInfo.info_hash, metaInfo.metainfo_data]
 
@@ -155,30 +156,30 @@ def create_empty_file(file_path, total_size):
         f.write(b'\0')
 
 def request_metainfo_from_peer(peer_ip, peer_port):
-    """Gửi yêu cầu đến peer để lấy thông tin metainfo."""
     try:
         peer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         peer_socket.connect((peer_ip, peer_port))
-        
+
         # Gửi yêu cầu metainfo
         peer_socket.send("request_metainfo".encode('utf-8'))
-        
-        # Nhận dữ liệu metainfo từ peer
+
+        # Nhận dữ liệu metainfo
         metainfo_data = b""
         while True:
-            chunk = peer_socket.recv(4096)  # Nhận dữ liệu thành từng phần
-            if not chunk:  # Nếu không có dữ liệu nào còn lại thì dừng
+            chunk = peer_socket.recv(1024)
+            if chunk == b"END":  # Dừng khi nhận thông báo kết thúc
                 break
+            if not chunk:
+                raise ValueError("Connection closed unexpectedly.")
             metainfo_data += chunk
-        peer_socket.close()
-        
-        # Giải mã dữ liệu JSON nhận được thành dictionary
-        metainfo = json.loads(metainfo_data.decode('utf-8'))
-        return metainfo  # Trả về dữ liệu metainfo đã giải mã
-    except socket.error as e:
+
+        print("Received metainfo successfully.")
+        return json.loads(metainfo_data.decode('utf-8'))
+    except Exception as e:
         print(f"Error requesting metainfo from peer {peer_ip}:{peer_port} - {e}")
         return None
-    except json.JSONDecodeError:
-        print("Failed to decode metainfo data.")
-        return None
+    finally:
+        peer_socket.close()
+
+
 

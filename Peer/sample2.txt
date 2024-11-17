@@ -4,5 +4,5 @@ For the case of the single-file mode, the info dictionary contains the following
 name: the filename. This is purely advisory. (string)
 length: length of the file in bytes (integer)
 md5sum: (optional) a 32-character hexadecimal string corresponding to the MD5 sum of the file. This is not used by BitTorrent at all, but it is included by some programs for greater compatibility.
-Info in Multiple File Mode
-For the case of the multi-file mode, the info dictionary contains the main
+Info in Multiple File Modezz
+For the case of the multi-file mode, the info dictionary contains the main sdaasgaaaasssssssqqqqqww
