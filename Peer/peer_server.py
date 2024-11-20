@@ -69,6 +69,7 @@ class Peer_Server:
             metainfo_data = json.dumps(self.metainfo).encode('utf-8')
             for i in range(0, len(metainfo_data), 1024):
                 peer_socket.send(metainfo_data[i:i+1024])
+                print(f"Sending metainfo data chunk: {metainfo_data[i:i+1024]}")
             # Gửi thông báo kết thúc
             peer_socket.send("END".encode('utf-8'))
             print("Sent metainfo to peer.")
@@ -80,16 +81,18 @@ class Peer_Server:
 
     def send_piece(self, peer_socket, piece_index):
         """Gửi dữ liệu piece cho peer khác nếu có sẵn."""
-        if self.download_manager.has_piece(piece_index):
+        try:
+            if not self.download_manager.has_piece(piece_index):
+                peer_socket.send("Piece not available".encode('utf-8'))
+                print(f"Piece {piece_index} not available.")
+                return
+
             piece_data = self.download_manager.get_piece_data(piece_index)
-            try:
-                peer_socket.sendall(piece_data)  # Gửi toàn bộ dữ liệu piece
-                print(f"Sent piece {piece_index} to peer.")
-            except Exception as e:
-                print(f"Error sending piece {piece_index}: {e}")
-        else:
-            peer_socket.send("Piece not available".encode('utf-8'))
-            print(f"Piece {piece_index} not available.")
+            peer_socket.sendall(piece_data)
+            print(f"Sent piece {piece_index} to peer.")
+        except Exception as e:
+            print(f"Error sending piece {piece_index}: {e}")
+
 
 
 

@@ -78,29 +78,32 @@ def handle_peer_response(peer_socket, piece_index):
         print(f"Error receiving block data: {e}")
 
 def connect_to_peer_and_download(peer_ip, peer_port, piece_index, download_manager):
-    peer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    peer_socket.connect((peer_ip, peer_port))
+    try:
+        peer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        peer_socket.connect((peer_ip, peer_port))
 
-    peer_socket.send("establish".encode('utf-8'))
-    response = peer_socket.recv(1024).decode('utf-8')
-    if response == "established":
-        print(f"Connection established with {peer_ip}:{peer_port}")
+        peer_socket.send("establish".encode('utf-8'))
+        response = peer_socket.recv(1024).decode('utf-8')
+        if response == "established":
+            print(f"Connection established with {peer_ip}:{peer_port}")
 
-    request_message = f"Request piece:{piece_index}"
-    peer_socket.send(request_message.encode('utf-8'))
-    print(f"Requested piece {piece_index}")
-    piece_data = handle_peer_response(peer_socket, piece_index)
-    # Lưu block_data vào DownloadManager
-    download_manager.save_piece(piece_index, piece_data)
+        request_message = f"Request piece:{piece_index}"
+        peer_socket.send(request_message.encode('utf-8'))
+        print(f"Requested piece {piece_index}")
+        
+        piece_data = peer_socket.recv(1024)  # Nhận dữ liệu
+        if piece_data:
+            print(f"Received block data for piece {piece_index}")
+            download_manager.save_piece(piece_index, piece_data)
 
-    # Gửi thông báo 'has' ngay sau khi tải xong
-    peer_socket.send(f"has_piece:{piece_index}".encode('utf-8'))
-    print(f"Sent 'has' message for piece {piece_index}.")
-
-    peer_socket.send("end".encode('utf-8'))
+        # Gửi lệnh kết thúc
+        peer_socket.send("end".encode('utf-8'))
+    except socket.error as e:
+        print(f"Error connecting to peer {peer_ip}:{peer_port} - {e}")
+    finally:
+        peer_socket.close()
 
 def peer_has_piece(peer_ip, peer_port, piece_index):
-    """Gửi yêu cầu đến peer để kiểm tra xem họ có piece không."""
     try:
         peer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         peer_socket.connect((peer_ip, peer_port))
@@ -111,42 +114,61 @@ def peer_has_piece(peer_ip, peer_port, piece_index):
         
         # Nhận phản hồi từ peer
         response = peer_socket.recv(1024).decode('utf-8')
-        peer_socket.send('end'.encode('utf-8'))
-        
+        if response == "yes":
+            print(f"Peer {peer_ip}:{peer_port} has piece {piece_index}")
+        else:
+            print(f"Peer {peer_ip}:{peer_port} does not have piece {piece_index}")
+
+        # Gửi lệnh kết thúc
+        peer_socket.send("end".encode('utf-8'))
         return response == "yes"  # Nếu peer có piece này, trả về True
     except socket.error as e:
         print(f"Error contacting peer {peer_ip}:{peer_port} - {e}")
         return False
+    finally:
+        peer_socket.close()
 
 
 def download_piece_from_multiple_peers(peer_list, total_pieces, download_manager):
     threads = []
+    invalid_requests = 0  # Đếm số lượng yêu cầu không hợp lệ
+    max_invalid_requests = 10  # Ngưỡng tối đa cho phép
+
     while not download_manager.is_file_complete():
         for piece_index in range(total_pieces):
-            # Nếu đã có piece này, không cần tải lại
             if download_manager.has_piece(piece_index):
                 continue
 
+            if piece_index >= download_manager.total_pieces:
+                print(f"Skipping invalid piece index: {piece_index}")
+                invalid_requests += 1
+                if invalid_requests > max_invalid_requests:
+                    print("Too many invalid requests. Exiting.")
+                    return
+                continue
+
             for peer in peer_list:
-                # Peer đó là chính client
                 peer_ip, peer_port = peer["ip"], peer["port"]
+
                 if get_public_ip() == peer_ip:
-                    # continue
                     peer_ip = "127.0.0.1"
-                
-                # Kiểm tra xem peer có piece này không trước khi tải
+
                 if peer_has_piece(peer_ip, peer_port, piece_index):
+                    print(f"Peer {peer_ip}:{peer_port} has piece {piece_index}")
                     thread = threading.Thread(
                         target=connect_to_peer_and_download, 
                         args=(peer_ip, peer_port, piece_index, download_manager)
                     )
                     threads.append(thread)
                     thread.start()
-                    break  # Chuyển sang piece tiếp theo sau khi tìm thấy một peer có piece này
+                    break
 
-    for thread in threads:
-        thread.join()
-    print("Downloaded all pieces")
+        for thread in threads:
+            thread.join()
+
+    print("Downloaded all pieces.")
+
+
 
 def run_server(download_manager, metainfo_data, port):
     peer_server = Peer_Server(download_manager, metainfo_data)

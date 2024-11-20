@@ -7,14 +7,17 @@ import hashlib
 from file_manager import assemble_file  
 
 class DownloadManager:
-    def __init__(self, total_pieces, piece_length, files, isUpload = False, file_paths = None):
+    def __init__(self, total_pieces, piece_length, files, isUpload=False, file_paths=None):
         self.isUpload = isUpload
         self.file_paths = file_paths
         self.piece_length = piece_length
         self.total_pieces = total_pieces
         self.files = files
-        self.piece_status = {i: {'data': None, 'downloaded': False} for i in range(total_pieces)} if not self.isUpload else self.generate_piece()
-    
+        if self.isUpload:
+            self.piece_status = self.generate_piece()
+        else:
+            self.piece_status = {i: {'data': None, 'downloaded': False} for i in range(total_pieces)}
+
     def generate_piece(self):
         dic = {}
         i = 0
@@ -25,7 +28,8 @@ class DownloadManager:
                     piece_data = f.read(self.piece_length)
                     if not piece_data:
                         break
-                    dic[i] = {'data' : piece_data, 'downloaded': True}
+                    dic[i] = {'data': piece_data, 'downloaded': True}
+                    i += 1
             return dic
 
     def save_piece(self, piece_index, piece_data):
@@ -41,7 +45,12 @@ class DownloadManager:
 
     def has_piece(self, piece_index):
         """Kiểm tra xem piece đã được tải xong chưa."""
+        if piece_index < 0 or piece_index >= self.total_pieces:
+            print(f"Piece {piece_index} is out of range.")
+            return False
         return self.piece_status[piece_index]['downloaded']
+
+
 
     def assemble(self):
         """Ghép các pieces thành tệp hoàn chỉnh, hỗ trợ nhiều tệp."""
@@ -132,14 +141,22 @@ def create_metainfo():
     metaInfo.generate_metainfo()
     return [metaInfo.info_hash, metaInfo.metainfo_data]
 
+_cached_public_ip = None  # Biến toàn cục để lưu trữ IP công khai
+
 def get_public_ip():
+    global _cached_public_ip
+    if _cached_public_ip is not None:
+        return _cached_public_ip
+
     try:
-        response = requests.get("https://api.ipify.org?format=json")
-        ip = response.json()["ip"]
-        return ip
+        response = requests.get("https://api.ipify.org?format=json", timeout=5)
+        _cached_public_ip = response.json()["ip"]
+        return _cached_public_ip
     except requests.RequestException as e:
         print(f"Error getting public IP: {e}")
-        return None
+        return "127.0.0.1"  # Dùng localhost nếu không thể lấy IP công khai
+
+
     
 def save_piece_to_file(piece_data, piece_index, file_path):
     """Lưu phần đã tải xong vào tệp."""
@@ -167,6 +184,7 @@ def request_metainfo_from_peer(peer_ip, peer_port):
         metainfo_data = b""
         while True:
             chunk = peer_socket.recv(1024)
+            print(f"Received chunk: {chunk}")
             if chunk == b"END":  # Dừng khi nhận thông báo kết thúc
                 break
             if not chunk:
