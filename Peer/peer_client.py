@@ -34,7 +34,7 @@ class TrackerClient:
             'event': event,
             'compact': 1,
             'public_ip': public_ip,  # Gửi IP công khai của client
-            'local_ip' : local_ip
+            'local-ip' : local_ip
         }
 
         if self.tracker_id:
