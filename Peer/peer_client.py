@@ -218,7 +218,7 @@ def cli_interface():
             peer_ip = first_peer['ip']
             if get_public_ip() == first_peer['ip']:
                 # continue
-                peer_ip = "127.0.0.1"
+                peer_ip = first_peer['local-ip']
             metainfo_data = request_metainfo_from_peer(peer_ip, first_peer["port"])
             if metainfo_data:
                 total_pieces, piece_length, files = len(metainfo_data['info']['pieces']), metainfo_data['info']['piece length'], metainfo_data['info']['files'] 

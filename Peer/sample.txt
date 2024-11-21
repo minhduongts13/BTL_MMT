@@ -5,4 +5,4 @@ name: the filename. This is purely advisory. (string)
 length: length of the file in bytes (integer)
 md5sum: (optinal) a 32-character hexadecimal string corresponding to the MD5 sum of the file. This is not used by BitTorrent at all, but it is included by some programs for greater compatibility.
 Info in Multiple File Modezazaaa
-For the case of the multi-fiale mode, the info dictionary contains the main sdaasgaaaasssssssqqqqqwwzass30b7dea0204a787e99292d5d4808c5bc766baf09aaannaa
+For the case of the multi-fiale mode, the info dictionary contains the main sdaasgaaaasssssssqqqqqwwzass30b7dea0204a787e99292d5d4808c5bc766baf09aaannaaa

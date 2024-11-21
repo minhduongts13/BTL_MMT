@@ -24,7 +24,7 @@ def announce():
     uploaded = request.args.get('uploaded', 0)
     downloaded = request.args.get('downloaded', 0)
     left = request.args.get('left', 0)
-    local_ip = request.args.get('local-ip', 0)
+    local_ip = request.args.get('local-ip')
 
     # Kiểm tra nếu thiếu tham số bắt buộc
     if not info_hash or not peer_id or not port:
