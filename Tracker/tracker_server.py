@@ -70,7 +70,7 @@ def announce():
 
         # Chuẩn bị danh sách các peers trả về
         peer_list = [
-            {"peer_id": pid, "ip": peer["ip"], "port": peer["port"]}
+            {"peer_id": pid, "ip": peer["ip"], "port": peer["port"], "local-ip": peer["local-ip"]}
             for pid, peer in torrent_peers[info_hash].items()
             if pid != peer_id  # Loại bỏ chính peer gửi request
         ]
