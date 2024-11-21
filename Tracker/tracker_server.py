@@ -24,6 +24,7 @@ def announce():
     uploaded = request.args.get('uploaded', 0)
     downloaded = request.args.get('downloaded', 0)
     left = request.args.get('left', 0)
+    local_ip = request.args.get('local-ip', 0)
 
     # Kiểm tra nếu thiếu tham số bắt buộc
     if not info_hash or not peer_id or not port:
@@ -58,6 +59,7 @@ def announce():
         if peer_id not in torrent_peers[info_hash]:
             torrent_peers[info_hash][peer_id] = {
                 "ip": client_ip,
+                "local-ip": local_ip,
                 "port": port,
                 "uploaded": uploaded,
                 "downloaded": downloaded,

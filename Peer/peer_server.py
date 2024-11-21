@@ -3,7 +3,7 @@ import threading
 import json
 import hashlib
 import time
-from utils import DownloadManager
+from utils import *
 
 
 class Peer_Server:
